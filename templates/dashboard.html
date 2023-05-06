@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+{% block content %}
+<head>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
+</head>
+      <div class="content">
+          <div class="col-12">
+            <div class="card card-chart">
+              <div class="card-header ">
+                  <div class="col-sm-12 text-center">
+                    <h2 class="card-title", style="margin-bottom: 5%;">gVWave Acquisition 1D</h2>
+                    <div class="row" , style="margin-bottom: 3%;">
+                        <div class="col-6">
+                          <label for="duration">Duration (seconds):</label>
+                          <input type="number" class="form-control" id="duration" step="0.1" min="0.1" value="2">
+                        </div>
+                        <div class="col-6">
+                          <label for="radius">Radius:</label>
+                          <input type="number" class="form-control" id="radius" step="1" min="1" value="6">
+                        </div>
+                    </div>
+                    <div class="row", style="margin-bottom: 3%;">
+                      <div class="col-6">
+                        <label for="latitude">Latitude:</label>
+                        <input type="number" class="form-control" id="latitude" step="0.0001" min="0.1" value="13.736717">
+                      </div>
+                      <div class="col-6">
+                        <label for="longitude">longitude:</label>
+                        <input type="number" class="form-control" id="longitude" step="0.0001" min="0.1" value="100.523186">
+                      </div>
+                    </div>
+                    <div class="row", style="margin-bottom: 3%;">
+                      <div class="col-12">
+                        <label for="description">Short brief about the location</label>
+                        <input type="text" class="form-control" id="description" value="Location">
+                      </div>
+                    </div>
+                    <div class="centered-button", style="margin-top: 5%; margin-bottom: 1%">
+                      <button id="collect-button" class="btn btn-primary", style="width: fit-content;">
+                          <i class="tim-icons icon-spaceship"></i> Start Collection
+                      </button>
+                    </div>
+
+
+                    <div id="progress-container-collection" style="display: none;">
+                      <p>Data Collection Progress: 
+                        <span id="progress-text-collection" class="progress-text"></span>
+                      </p>
+                      <div class="progress">
+                          <div id="progress-bar-collection" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                      </div>
+                  </div>
+                  <div id="progress-container-storage" style="display: none;">
+                      <p>Data Storage Progress: 
+                        <span id="progress-text-storage" class="progress-text"></span>
+                      </p>
+                      <div class="progress">
+                          <div id="progress-bar-storage" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                      </div>
+                  </div>
+                    <div class="card-body" style="height: auto;">
+                      <div class="chart-area" style="height: auto;">
+                          <div id="plot" style="margin-top: 20px;"></div>
+                      </div>
+                    </div>
+                  <div id="sampling-rate" style="margin-top: 10px;"></div>
+                  <!-- Add this input element for file uploads -->
+
+                  <button id="upload_data" class="btn btn-primary" style="width: fit-content;">
+                    <input type="file" id="file-input" accept=".json">
+                    <i class="tim-icons icon-cloud-upload-94"></i> Upload data
+                  </button>
+
+
+                  <!-- Add this "Confirm" button and set it to be initially hidden -->
+                  <button id="confirm_data" class="btn btn-primary" style="width: fit-content; display: none;">
+                    <i class="tim-icons icon-check-2"></i> Confirm
+                  </button>
+                  <div class="centered-button" style="margin-top: 20px;">
+                  </div>
+            </div>
+          </div>
+        </div>
+
+        
+      <script>
+        let uploadedWaveformData = null;
+
+        $(document).ready(function () {
+            $("#collect-button").click(function () {
+                $("#collect-button").prop("disabled", true);
+                let duration = parseFloat($("#duration").val());
+                let radius = parseFloat($("#radius").val());
+                let latitude = parseFloat($("#latitude").val());
+                let longitude = parseFloat($("#longitude").val());
+                let location = $("#description").val()
+                $.post("/collect_data", 
+                  {duration: duration,
+                  radius: radius,
+                  latitude: latitude,
+                  longitude: longitude,
+                  location: location
+                }, function (data) {
+                    let graphJSON = data.graphJSON;
+                    let sampling_rate = data.sampling_rate.toFixed(2);
+                    $("#sampling-rate").html("Sampling rate: " + sampling_rate + " Hz");
+                    Plotly.newPlot("plot", graphJSON.data, graphJSON.layout);
+                    $("#collect-button").prop("disabled", false);
+                });
+    
+                // Data Collection Progress bar
+                $("#progress-container-collection").show();
+                let progressCollection = 0;
+                let progressBarCollection = $("#progress-bar-collection");
+                let progressTextCollection = $("#progress-text-collection");
+                let progressIntervalCollection = setInterval(function () {
+                    progressCollection += 100 * 0.1 / duration;
+                    if (progressCollection >= 100) {
+                        clearInterval(progressIntervalCollection);
+                        progressCollection = 100;
+                    }
+                    progressBarCollection.css("width", progressCollection + "%");
+                    progressTextCollection.html(progressCollection.toFixed(0) + "%");
+                }, 100);
+    
+                setTimeout(function () {
+                    clearInterval(progressIntervalCollection);
+                    progressBarCollection.css("width", "0%");
+                    $("#progress-container-collection").hide();
+                }, duration * 1000);
+    
+                // Data Storage Progress bar
+                let progressBarStorage = $("#progress-bar-storage");
+                let progressTextStorage = $("#progress-text-storage");
+    
+                let socket = io.connect(location.origin + '/store_data_progress', {port: 5000, rememberTransport: false});
+    
+                // Emit show_storage_progress event to the server
+                socket.emit('show_storage_progress');
+    
+                socket.on('storage_complete', function (data) {
+                    if (data.status === 'success') {
+                        console.log('Data storage complete');
+                        progressBarStorage.css("width", "100%");
+                    }
+                });
+    
+                socket.on('store_data_progress', function (data) {
+                    let progressStorage = data.progress;
+                    // Update the progress bar with the new progress value
+                    progressBarStorage.css("width", progressStorage + "%");
+                    progressTextStorage.html(progressStorage.toFixed(0) + "%");
+                    $("#progress-container-storage").show();
+                });
+            });
+        // Add this function to read the JSON file and return a Promise
+        function readFile(file) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target.result);
+            reader.onerror = (error) => reject(error);
+            reader.readAsText(file);
+          });
+        }
+
+        // Modify the existing code inside the $(document).ready(function() { ... });
+        $("#upload_data").click(function () {
+          $("#file-input").click();
+        });
+
+        $("#file-input").change(async function (event) {
+          const file = event.target.files[0];
+          if (!file) return;
+        
+          try {
+            const jsonText = await readFile(file);
+            const data = JSON.parse(jsonText);
+            uploadedWaveformData = data.waveform_data;
+            // Update form fields with the metadata from the JSON file
+            const metadata = data.metadata;
+            $("#duration").val(metadata.duration);
+            $("#radius").val(metadata.radius);
+            $("#latitude").val(metadata.latitude);
+            $("#longitude").val(metadata.longitude);
+            $("#description").val(metadata.location);
+        
+            // Update the plot with the waveform data from the JSON file
+            const waveform_data = data.waveform_data;
+            const traces = [];
+        
+            for (const channel in waveform_data) {
+              traces.push({
+                x: Array.from({ length: waveform_data[channel].length }, (_, i) => i / metadata.sampling_rate),
+                y: waveform_data[channel],
+                mode: 'lines',
+                name: `Channel ${channel}`
+              });
+            }
+        
+            const layout = {
+              title: 'Waveform Data',
+              xaxis: { title: 'Time (s)' },
+              yaxis: { title: 'Amplitude' },
+              autosize: true, // Use "true" instead of "True"
+              height: 600,
+              width: null, // Use "null" instead of "None"
+              legend: {
+                x: 0.85,
+                y: 0.95
+              }
+            };
+        
+            Plotly.newPlot("plot", traces, layout);
+        
+            // Show the "Confirm" button
+        $("#confirm_data").show();
+          } catch (error) {
+            console.error("Error reading or parsing the JSON file:", error);
+          }
+        });
+        
+        
+          $("#confirm_data").click(function () {
+            console.log("confirm_data clicked");
+            const duration = parseFloat($("#duration").val());
+            const radius = parseFloat($("#radius").val());
+            const latitude = parseFloat($("#latitude").val());
+            const longitude = parseFloat($("#longitude").val());
+            const location = $("#description").val()
+
+            const requestData = {
+              metadata: {
+                duration: duration,
+                radius: radius,
+                latitude: latitude,
+                longitude: longitude,
+                location: location,
+              },
+              waveform_data: uploadedWaveformData
+            };
+
+            $.ajax({
+              url: '/store_uploaded_data',
+              type: 'POST',
+              contentType: 'application/json',
+              data: JSON.stringify(requestData),
+              success: function(response) {
+                console.log('Data stored successfully:', response);
+              },
+              error: function(error) {
+                console.error('Error storing data:', error);
+              }
+            });
+          });
+        });
+
+        
+
+    </script>
+    
+    
+      {% endblock %}
+
+
+
+

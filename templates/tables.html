@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+      <div class="content">
+        <div class="row">
+            <div class="col-md-12">
+                <div id="waveform-plot"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card ">
+                    <div class="card-header">
+                        <h2>Events Table</h2>
+                    </div>
+                    <div class="card-body ">
+                        <div class="table-full-width table-responsive">
+                            <table class="table">
+                                <tbody>
+                                    {% for row in data %}
+                                    <tr>
+                                        <td>
+                                            <div class="form-check">
+                                                <label class="form-check-label">
+                                                    <input class="form-check-input" type="checkbox" value="">
+                                                    <span class="form-check-sign">
+                                                        <span class="check"></span>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <p class="title">ID: {{ row[0] }}  {{ row[7] }}</p>
+                                            <p class="text-muted">Date: {{ row[1] }}</p>
+                                        </td>
+                                        <td>
+                                            <p class="title">Number of Channels: {{ row[2] }}</p>
+                                            <p class="text-muted">Duration: {{ row[3] }} seconds</p>
+                                        </td>
+                                        <td>
+                                            <p class="title">Radius: {{ row[4] }} m</p>
+                                            <p class="text-muted">Latidute: {{ row[5] }} Longitude: {{ row[6] }}</p>
+                                        </td>
+                                        <td class="td-actions text-right">
+                                            <button type="button" rel="tooltip" title="" class="btn btn-link edit-icon" data-id="{{ row[0] }}" data-original-title="Edit Task">
+                                              <i class="tim-icons icon-pencil"></i>
+                                          </button>
+                                          <button type="button" rel="tooltip" title="" class="btn btn-link zoom-split" data-id="{{ row[0] }}" data-original-title="View Details">
+                                              <i class="tim-icons icon-zoom-split"></i>
+                                          </button>
+                                          <button type="button" rel="tooltip" title="" class="btn btn-link delete-event" data-original-title="Delete" data-id="{{ row[0] }}">
+                                            <i class="tim-icons icon-trash-simple"></i>
+                                        </button>
+                                        <button type="button" rel="tooltip" title="" class="btn btn-link download-event" data-original-title="Download" data-id="{{ row[0] }}" onclick="downloadWaveformData({{ row[0] }});">
+                                            <i class="tim-icons icon-cloud-download-93"></i>
+                                        </button>                                                                      
+                                      </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        $(document).ready(function() {
+            $('.zoom-split').click(function() {
+                let id = $(this).data('id');
+                // Fetch data for the given ID and call the plotWaveform function
+                $.get('/get_waveform_data', {id: id}, function(data) {
+                    plotWaveform(data, id);
+                });
+            });
+        });
+        function plotWaveform(data, id) {
+            let traces = [];
+            for (const channel in data) {
+                if (data.hasOwnProperty(channel)) {
+                    traces.push({
+                        x: Array.from({length: data[channel].length}, (_, i) => i),
+                        y: data[channel],
+                        mode: 'lines',
+                        name: 'Channel ' + channel
+                    });
+                }
+            }
+            let layout = {
+                title: 'Waveform of All Channels of ID:' + id,
+                xaxis: {title: 'Sample Index'},
+                yaxis: {title: 'Values' , range: [0, 1]}
+            };
+            Plotly.newPlot('waveform-plot', traces, layout);
+        }
+
+        $(document).ready(function () {
+            $(".delete-event").on("click", function () {
+                let eventId = $(this).data("id");
+                $.ajax({
+                    url: "/delete_event",
+                    method: "POST",
+                    data: {
+                        id: eventId
+                    },
+                    success: function (response) {
+                        if (response.status === "success") {
+                            location.reload(); // Reload the page to reflect the changes
+                        } else {
+                            alert("An error occurred while deleting the event. Please try again.");
+                        }
+                    },
+                    error: function () {
+                        alert("An error occurred while deleting the event. Please try again.");
+                    }
+                });
+            });
+        });
+        $(document).ready(function () {
+            $(".edit-icon").on("click", function () {
+                let eventId = $(this).data("id");
+                let currentRow = $(this).closest("tr");
+        
+                if (currentRow.next(".edit-row").length === 0) {
+                    let editRow = $("<tr>").addClass("edit-row");
+                    let formCell = $("<td>").attr("colspan", "5");
+                    let form = $("<form>").addClass("form-inline");
+                    let rowData = {
+                        location: currentRow.find(".title:contains('ID')").text().split(" ")[3],
+                        num_channels: currentRow.find(".title:contains('Number of Channels')").text().split(": ")[1],
+                        duration: currentRow.find(".text-muted:contains('Duration')").text().split(": ")[1].split(" ")[0],
+                        radius: currentRow.find(".title:contains('Radius')").text().split(": ")[1].split(" ")[0],
+                        latitude: currentRow.find(".text-muted:contains('Latidute')").text().split(": ")[1].split(" ")[0],
+                        longitude: currentRow.find(".text-muted:contains('Longitude')").text().split(": ")[2]
+                    };
+            
+        
+                    // Add form fields for each piece of metadata
+                    form.append(createInlineFormGroup("Location", "location", "text", rowData.location));
+                    form.append(createInlineFormGroup("Number of Channels", "num_channels", "number", rowData.num_channels, true));
+                    form.append(createInlineFormGroup("Duration", "duration", "number", rowData.duration, true));
+                    form.append(createInlineFormGroup("Radius", "radius", "number", rowData.radius));
+                    form.append(createInlineFormGroup("Latitude", "latitude", "real", rowData.latitude));
+                    form.append(createInlineFormGroup("Longitude", "longitude", "real", rowData.longitude));
+        
+                    // Add a submit button
+                    let submitButton = $("<button>").addClass("btn btn-primary").text("Update");
+                    form.append(submitButton);
+        
+                    form.on("submit", function (e) {
+                        e.preventDefault();
+                    
+                        // Collect the updated metadata
+                        let updatedData = {
+                            id: eventId,
+                            num_channels: form.find("[name='num_channels']").val() || rowData.num_channels,
+                            duration: form.find("[name='duration']").val() || rowData.duration,
+                            radius: form.find("[name='radius']").val() || rowData.radius,
+                            latitude: form.find("[name='latitude']").val() || rowData.latitude,
+                            longitude: form.find("[name='longitude']").val() || rowData.longitude,
+                            location: form.find("[name='location']").val() || rowData.location,
+                        };
+                    
+                        // Send the updated data to the server
+                        $.ajax({
+                            url: "/update_event",
+                            method: "POST",
+                            data: updatedData,
+                            success: function (response) {
+                                if (response.status === "success") {
+                                    location.reload(); // Reload the page to reflect the changes
+                                } else {
+                                    alert("An error occurred while updating the event. Please try again.");
+                                }
+                            },
+                            error: function () {
+                                alert("An error occurred while updating the event. Please try again.");
+                            }
+                        });
+                    });
+        
+                    formCell.append(form);
+                    editRow.append(formCell);
+                    currentRow.after(editRow);
+                } else {
+                    currentRow.next(".edit-row").remove();
+                }
+            });
+        });
+        
+        function createInlineFormGroup(labelText, inputName, inputType, placeholderText, readonly = false) {
+            let formGroup = $("<div>").addClass("form-group mr-4");
+            let label = $("<label>").addClass("mr-2").text(labelText);
+            let input = $("<input>").attr("type", inputType).attr("name", inputName).attr("placeholder", placeholderText).addClass("form-control");
+        
+            if (readonly) {
+                input.attr("readonly", true);
+            }
+        
+            formGroup.append(label, input);
+            return formGroup;
+        }
+        function downloadWaveformData(id) {
+            window.location.href = "/download_waveform_data?id=" + id;
+        }
+        
+        
+        
+    </script>
+
+    {% endblock %}
