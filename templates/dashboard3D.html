@@ -7,10 +7,11 @@
 </head>
       <div class="content">
           <div class="col-12">
-            <div class="card card-chart">
+            <div class="card card-chart"  style="background: #212529;">
               <div class="card-header ">
                   <div class="col-sm-12 text-center">
-                    <h2 class="card-title", style="margin-bottom: 5%;">gVWave Acquisition 3D</h2>
+                    <h2 class="card-title", style="margin-bottom: 5%;">gVWave Acquisition</h2>
+                    <div id="connected-devices">Connected Devices: 0</div>
                     <div class="row" , style="margin-bottom: 3%;">
                         <div class="col-6">
                           <label for="duration">Duration (seconds):</label>
@@ -96,17 +97,42 @@
                 let latitude = parseFloat($("#latitude").val());
                 let longitude = parseFloat($("#longitude").val());
                 let location = $("#description").val()
-                $.post("/collect_data", 
+                let command = $('#command').val();
+                $.post("/get_data", 
                   {duration: duration,
                   radius: radius,
                   latitude: latitude,
                   longitude: longitude,
-                  location: location
-                }, function (data) {
-                    let graphJSON = data.graphJSON;
-                    let sampling_rate = data.sampling_rate.toFixed(2);
-                    $("#sampling-rate").html("Sampling rate: " + sampling_rate + " Hz");
-                    Plotly.newPlot("plot", graphJSON.data, graphJSON.layout);
+                  location: location,
+                }, function(response) {
+                    let data = response; // Use response directly, no need to parse
+                    console.log(data);
+            
+                    // Group the data by channel
+                    const channels = {};
+                    data.forEach((item) => {
+                        if (!channels[item.channel]) {
+                            channels[item.channel] = [];
+                        }
+                        channels[item.channel].push({ sample: item.sample, value: item.value });
+                    });
+            
+                    // Create the plot data
+                    const plotData = Object.entries(channels).map(([channel, values]) => ({
+                        x: values.map((item) => item.sample),
+                        y: values.map((item) => item.value),
+                        mode: "lines+markers",
+                        type: "scatter",
+                        name: `Channel ${channel}`,
+                    }));
+            
+                    let layout = {
+                        title: 'Random Data',
+                        xaxis: { title: 'Index' },
+                        yaxis: { title: 'Value' },
+                    };
+            
+                    Plotly.newPlot('plot', plotData, layout);
                     $("#collect-button").prop("disabled", false);
                 });
     
@@ -255,8 +281,16 @@
             });
           });
         });
-
+        function updateConnectedDevices() {
+          fetch('/connected_devices')
+            .then(response => response.json())
+            .then(data => {
+              document.getElementById('connected-devices').textContent = `Connected Devices: ${data.count}`;
+            });
+        }
         
+        // Update the connected devices count every 5 seconds
+        setInterval(updateConnectedDevices, 5000);
 
     </script>
     

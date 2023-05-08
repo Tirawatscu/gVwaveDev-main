@@ -82,21 +82,25 @@
             let traces = [];
             for (const channel in data) {
                 if (data.hasOwnProperty(channel)) {
-                    traces.push({
-                        x: Array.from({length: data[channel].length}, (_, i) => i),
-                        y: data[channel],
-                        mode: 'lines',
-                        name: 'Channel ' + channel
-                    });
+                    for (const component in data[channel]) {
+                        if (data[channel].hasOwnProperty(component)) {
+                            traces.push({
+                                x: Array.from({length: data[channel][component].length}, (_, i) => i),
+                                y: data[channel][component],
+                                mode: 'lines',
+                                name: `Channel ${channel} (${component.toUpperCase()})`
+                            });
+                        }
+                    }
                 }
             }
             let layout = {
                 title: 'Waveform of All Channels of ID:' + id,
                 xaxis: {title: 'Sample Index'},
-                yaxis: {title: 'Values' , range: [0, 1]}
+                yaxis: {title: 'Values', range: [-1, 1]}
             };
             Plotly.newPlot('waveform-plot', traces, layout);
-        }
+        }        
 
         $(document).ready(function () {
             $(".delete-event").on("click", function () {

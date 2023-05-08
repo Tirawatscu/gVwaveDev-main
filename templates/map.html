@@ -75,21 +75,28 @@
         let traces = [];
         for (const channel in graphData) {
             if (graphData.hasOwnProperty(channel)) {
-                traces.push({
-                    x: Array.from({length: graphData[channel].length}, (_, i) => i),
-                    y: graphData[channel],
-                    mode: 'lines',
-                    name: 'Channel ' + channel
-                });
+                for (const component in graphData[channel]) {
+                    if (graphData[channel].hasOwnProperty(component)) {
+                        let channelData = graphData[channel][component];
+                        traces.push({
+                            x: Array.from({length: channelData.length}, (_, i) => i),
+                            y: channelData,
+                            mode: 'lines',
+                            name: `Channel ${channel} (${component})`
+                        });
+                    }
+                }
             }
         }
         let layout = {
             title: 'Waveform of All Channels of ID:' + id,
             xaxis: {title: 'Sample Index'},
-            yaxis: {title: 'Values' , range: [0, 1]}
+            yaxis: {title: 'Values', range: [0, 1]}
         };
         Plotly.newPlot(popupId, traces, layout);
     }
+    
+    
     
       
     </script>
