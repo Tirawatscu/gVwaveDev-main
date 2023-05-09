@@ -415,11 +415,13 @@ command_processed = True
 
 @app.route('/dashboard3D.html', methods=['GET', 'POST'])
 def dashboard3D():
-    global current_command, command_processed
+    global current_command, command_processed_dict
     if request.method == 'POST':
         duration = int(request.form['duration'])
         current_command = int(duration*128)
-        command_processed = False
+        with connections_lock:
+            for device_id in connected_devices:
+                command_processed_dict[device_id] = False
         return redirect('/dashborad3D')
     else:
         return render_template('/dashboard3D.html')
@@ -427,9 +429,15 @@ def dashboard3D():
 # Add a new global variable to store the received data
 received_data = []
 
+
+connected_devices = {}
+command_processed_dict = {}
+received_data_dict = {}
+connections_lock = Lock()
+
 @app.route('/get_data', methods=['POST'])
 def get_data():
-    global current_command, command_processed, received_data
+    global current_command, command_processed_dict, received_data_dict, connected_devices
     if request.method == 'POST':
         duration = float(request.form['duration'])
         radius = float(request.form['radius'])
@@ -437,32 +445,51 @@ def get_data():
         longitude = float(request.form['longitude'])
         location = request.form['location']
         current_command = int(duration * 128)
-        command_processed = False
-        # Wait until the command is processed
-        while not command_processed:
+
+        # Set all command_processed flags to False
+        with connections_lock:
+            for device_id in connected_devices:
+                command_processed_dict[device_id] = False
+
+        # Wait until the command is processed for all devices
+        while not all(command_processed_dict.values()):
             time.sleep(0.1)
+
+        # Merge data from all devices
+        merged_data = defaultdict(list)
+        id_device = received_data_dict.keys()
+        channels = [n for n in range(len(id_device) * 3)]
+        channel_idx = 0
+        for device_data in received_data_dict.values():
+            for idx, values in enumerate(device_data.values()):
+                print(channel_idx)
+                merged_data[channels[channel_idx]].extend(values)
+                channel_idx += 1
+
         timestamp = int(time.time())
-        num_channels = 3
+        num_channels = len(merged_data)
+        
         @copy_current_request_context
         def store_data_task():
-            store_event_in_database(socketio, timestamp, num_channels, duration, radius, latitude, longitude, received_data, location, components=['z', 'x', 'y'])
+            store_event_in_database(socketio, timestamp, num_channels, duration, radius, latitude, longitude, merged_data, location, components=['z', 'x', 'y'])
             socketio.emit('storage_complete', {'status': 'success'}, namespace='/store_data_progress')
 
         # Show the storage progress bar
         socketio.emit('show_storage_progress', {}, namespace='/store_data_progress')
         socketio.start_background_task(store_data_task)
         
-        # Convert the data to a format suitable for plotting
+        # Convert the merged data to a format suitable for plotting
         plot_data = []
-        for channel, values in received_data.items():
+        for channel, values in merged_data.items():
             for i, value in enumerate(values):
                 plot_data.append({'channel': int(channel), 'sample': i, 'value': value})
 
         return jsonify(plot_data)
 
 
+
 def handle_client_connection(conn, addr):
-    global current_command, command_processed, received_data, connected_devices
+    global command_processed_dict, received_data_dict, connected_devices
     
     # Receive the device identifier (assuming it's sent by the client as the first message)
     device_id = conn.recv(1024).decode()
@@ -473,9 +500,10 @@ def handle_client_connection(conn, addr):
         else:
             print(f"New device {device_id} connected")
             connected_devices[device_id] = None
+            command_processed_dict[device_id] = True
 
     while True:
-        if not command_processed:
+        if not command_processed_dict[device_id]:
             try:
                 command_to_send = current_command
                 conn.sendall(str(command_to_send).encode())
@@ -492,10 +520,13 @@ def handle_client_connection(conn, addr):
                         break
                     data += chunk
                     remaining_data -= len(chunk)
-                
+
                 received_data = json.loads(data.decode())  # Deserialize JSON data
-                #print(f"Received random data: {received_data}")
-                command_processed = True
+
+                with connections_lock:
+                    received_data_dict[device_id] = received_data
+
+                command_processed_dict[device_id] = True
             except Exception as e:
                 print(f"Error in handle_client_connection: {e}")
                 break
@@ -505,8 +536,8 @@ def handle_client_connection(conn, addr):
 
     conn.close()
 
-connected_devices = {}
-connections_lock = Lock()
+
+
 
 def start_server(port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -534,8 +565,8 @@ def connected_devices_count():
 
 if __name__ == '__main__':
     try:
-        Thread(target=start_server, args=(5001,)).start()
-        socketio.run(app, host='0.0.0.0', port=1234)
+        Thread(target=start_server, args=(81,)).start()
+        socketio.run(app, host='0.0.0.0', port=80)
     finally:
         try:
             ADC.ADS1263_Exit()
