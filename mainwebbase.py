@@ -17,6 +17,11 @@ from flask_socketio import Namespace, emit
 from collections import defaultdict
 import socket
 from threading import Thread, Lock
+from db import initialize_database, DATABASE
+from flask_sqlalchemy import SQLAlchemy
+from auth import auth_bp
+from flask_login import LoginManager, current_user
+
 
 
 REF = 5.08          # Modify according to actual voltage
@@ -31,42 +36,31 @@ try:
     ADC.ADS1263_SetMode(1)
 except:
     pass
+# Initialization
+app = Flask(__name__, static_folder="static", template_folder="templates")
+app.secret_key = 'gvWave01'  # Replace 'your-secret-key' with a random string
+app.config['SESSION_TYPE'] = 'filesystem'
+login_manager = LoginManager()
+login_manager.login_view = 'auth_bp.login'
+login_manager.init_app(app)
 
-app = Flask(__name__)
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
+
+app.register_blueprint(auth_bp)
+
+
+
 socketio = SocketIO(app)
-
 sampling_rate = 128  # Hz
 sleep_duration = 1 / sampling_rate
-
-# Database setup
-DATABASE = 'adc_data.db'
-
-def initialize_database():
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS adc_data (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   timestamp TEXT,
-                   num_channels INTEGER,
-                   duration REAL,
-                   radius REAL,
-                   latitude REAL,
-                   longitude REAL,
-                   location TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS adc_values (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   event_id INTEGER,
-                   channel INTEGER,
-                   component TEXT,
-                   value REAL,
-                   FOREIGN KEY (event_id) REFERENCES adc_data (id))''')
-
 
 initialize_database()
 
 @app.route('/')
 def index():
-    return render_template('dashboard.html')
+    return render_template('login.html')
 
 @app.route('/dashboard.html')
 def dashboard():
