@@ -3,8 +3,11 @@ import time
 import platform
 systemOS = platform.system()
 if systemOS == "Linux":
-    import ADS1263
-    import RPi.GPIO as GPIO
+    try:
+        import ADS1263
+        import RPi.GPIO as GPIO
+    except:
+        pass
 import plotly.graph_objs as go
 import plotly
 import json
@@ -559,8 +562,8 @@ def connected_devices_count():
 
 if __name__ == '__main__':
     try:
-        Thread(target=start_server, args=(81,)).start()
-        socketio.run(app, host='0.0.0.0', port=80)
+        Thread(target=start_server, args=(8081,)).start()
+        socketio.run(app, host='0.0.0.0', port=8080)
     finally:
         try:
             ADC.ADS1263_Exit()
