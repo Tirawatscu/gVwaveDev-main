@@ -46,7 +46,7 @@ def signup_post():
         return redirect(url_for('auth_bp.signup'))
 
     # create a new user with the form data. Hash the password so the plaintext version isn't saved.
-    new_user = User(None, name, email, generate_password_hash(password, method='sha256'))
+    new_user = User(None, name, email, generate_password_hash(password, method='scrypt'))
 
     # add the new user to the database
     User.add_user(new_user)
