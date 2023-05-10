@@ -23,7 +23,7 @@ from threading import Thread, Lock
 from db import initialize_database, DATABASE
 from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, login_required
 
 
 
@@ -66,22 +66,23 @@ def index():
     return render_template('login.html')
 
 @app.route('/dashboard.html')
+@login_required
 def dashboard():
     return render_template('dashboard.html')
 
-'''@app.route('/dashboard3D.html')
-def dashboard3D():
-    return render_template('dashboard3D.html')'''
 
 @app.route('/icons.html')
+@login_required
 def icons():
     return render_template('icons.html')
 
 @app.route('/typography.html')
+@login_required
 def typography():
     return render_template('typography.html')
 
 @app.route('/map.html')
+@login_required
 def map():
     # Fetch data from the database
     conn = sqlite3.connect(DATABASE)
@@ -411,6 +412,7 @@ current_command = 0
 command_processed = True
 
 @app.route('/dashboard3D.html', methods=['GET', 'POST'])
+@login_required
 def dashboard3D():
     global current_command, command_processed_dict
     if request.method == 'POST':
