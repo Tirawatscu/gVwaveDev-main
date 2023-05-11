@@ -19,13 +19,15 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha384-KyZXEAg3QhqLMpG8r+Knujsl5/X+Hq5vk9g4e9S7fwiJtLd4ycL4h5NE4w4bR/MA" crossorigin="anonymous"></script>
+
 
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         var data = {{ data|tojson }};
         var lastDataPoint = data[data.length - 1];
-        var lastLatitude = lastDataPoint[5];
-        var lastLongitude = lastDataPoint[6];
+        var lastLatitude = lastDataPoint['latitude'];
+        var lastLongitude = lastDataPoint['longitude'];
     
         // Create the map and set its initial view to the last data point
         var mymap = L.map('mapid').setView([lastLatitude, lastLongitude], 13);
@@ -37,9 +39,9 @@
     
         // Add markers for each event
         data.forEach(row => {
-            var marker = L.marker([row[5], row[6]]).addTo(mymap);
+            var marker = L.marker([row['latitude'], row['longitude']]).addTo(mymap);
     
-            var metadataHTML = `<b>ID:</b> ${row[0]}<br><b>Date:</b> ${row[1]}<br><b>Number of Channels:</b> ${row[2]}<br><b>Duration:</b> ${row[3]} seconds<br><b>Radius:</b> ${row[4]} m`;
+            var metadataHTML = `<b>ID:</b> ${row['id']}<br><b>Date:</b> ${row['timestamp']}<br><b>Number of Channels:</b> ${row['num_channels']}<br><b>Duration:</b> ${row['duration']} seconds<br><b>Radius:</b> ${row['radius']} m`;
     
             var graphContainer = document.createElement('div');
             graphContainer.id = 'popup-' + row[0];
@@ -63,8 +65,8 @@
           });
     
             marker.on('popupopen', () => {
-              $.get('/get_waveform_data', {id: row[0]}, function(data) {
-                plotWaveform(data, row[0], graphContainer.id);
+              $.get('/get_waveform_data', {id: row['id']}, function(data) {
+                plotWaveform(data, row['id'], graphContainer.id);
             });
             });
         });
@@ -95,9 +97,6 @@
         };
         Plotly.newPlot(popupId, traces, layout);
     }
-    
-    
-    
       
     </script>
 {% endblock %}

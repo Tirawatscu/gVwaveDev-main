@@ -20,7 +20,7 @@ from flask_socketio import Namespace, emit
 from collections import defaultdict
 import socket
 from threading import Thread, Lock
-from db import initialize_database, DATABASE
+from models import db, AdcData, AdcValues
 from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
 from flask_login import LoginManager, current_user, login_required
@@ -29,7 +29,6 @@ from flask_login import LoginManager, current_user, login_required
 
 REF = 5.08          # Modify according to actual voltage
                     # external AVDD and AVSS(Default), or internal 2.5V
-
 try:
     ADC = ADS1263.ADS1263()
     if (ADC.ADS1263_init_ADC1('ADS1263_7200SPS') == -1):
@@ -40,26 +39,28 @@ try:
 except:
     pass
 # Initialization
-app = Flask(__name__, static_folder="static", template_folder="templates")
-app.secret_key = 'gvWave01'  # Replace 'your-secret-key' with a random string
-app.config['SESSION_TYPE'] = 'filesystem'
-login_manager = LoginManager()
-login_manager.login_view = 'auth_bp.login'
-login_manager.init_app(app)
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
+def create_app():
+    app = Flask(__name__, static_folder="static", template_folder="templates")
+    app.config['SECRET_KEY'] = 'gvWave01'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gVdb2023.db'
+    app.register_blueprint(auth_bp)
+    db.init_app(app)
+    login_manager = LoginManager()
+    login_manager.login_view = 'auth_bp.login'
+    login_manager.init_app(app)
+    from models import User
+    @login_manager.user_loader
+    def load_user(user_id):
+        return db.session.get(User, int(user_id))
+    return app
 
-app.register_blueprint(auth_bp)
-
+app = create_app()
 
 
 socketio = SocketIO(app)
 sampling_rate = 128  # Hz
 sleep_duration = 1 / sampling_rate
-
-initialize_database()
 
 @app.route('/')
 def index():
@@ -85,14 +86,10 @@ def typography():
 @login_required
 def map():
     # Fetch data from the database
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, timestamp, num_channels, duration, radius, latitude, longitude FROM adc_data")
-    data = cursor.fetchall()
-    conn.close()
-
+    data = AdcData.query.with_entities(AdcData.id, AdcData.timestamp, AdcData.num_channels, AdcData.duration, AdcData.radius, AdcData.latitude, AdcData.longitude).all()
+    data_dicts = [row._asdict() for row in data]
     # Render the map.html template and pass the data
-    return render_template('map.html', data=data)
+    return render_template('map.html', data=data_dicts)
 
 @app.route('/user.html')
 def user():
@@ -112,7 +109,6 @@ class StoreDataNamespace(Namespace):
     def on_show_storage_progress(self):
         self.emit('show_storage_progress')
 
-
 socketio.on_namespace(StoreDataNamespace('/store_data_progress'))
 
 @app.route('/collect_data', methods=['POST'])
@@ -123,7 +119,6 @@ def collect_data():
     longitude = float(request.form['longitude'])
     location = request.form['location']
     ADC_Value_List, sampling_rate = collect_adc_data(duration, radius, latitude, longitude, location)
-
     graphJSON = create_plot(ADC_Value_List)
     return jsonify({'graphJSON': json.loads(graphJSON), 'sampling_rate': sampling_rate})
 
@@ -168,17 +163,13 @@ def collect_adc_data(duration, radius, lat, lon, location):
     
     return converted_data, actual_sampling_rate
 
-
-
 def store_event_in_database(socketio, timestamp, num_channels, duration, radius, lat, lon, converted_data, location, components=None):
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-
     datetime_string = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
 
-    cur.execute("INSERT INTO adc_data (timestamp, num_channels, duration, radius, latitude, longitude, location) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (datetime_string, num_channels, duration, radius, lat, lon, location))
-    event_id = cur.lastrowid
+    new_adc_data = AdcData(timestamp=datetime_string, num_channels=num_channels, duration=duration, radius=radius, latitude=lat, longitude=lon, location=location)
+    db.session.add(new_adc_data)
+    db.session.commit()
+    event_id = new_adc_data.id
 
     total_values = sum(len(channel_data) for channel_data in converted_data.values())
     stored_values = 0
@@ -190,19 +181,16 @@ def store_event_in_database(socketio, timestamp, num_channels, duration, radius,
     for channel, values in converted_data.items():
         component = components[int(channel) % len(components)]
         for value in values:
-            cur.execute("INSERT INTO adc_values (event_id, channel, component, value) VALUES (?, ?, ?, ?)",
-                        (event_id, channel, component, value))
+            new_adc_value = AdcValues(event_id=event_id, channel=channel, component=component, value=value)
+            db.session.add(new_adc_value)
 
             stored_values += 1
             progress = stored_values / total_values * 100
-                                                  
+
             # Emit progress update
             socketio.emit('store_data_progress', {'progress': progress}, namespace='/store_data_progress')
 
-    conn.commit()
-    conn.close()
-
-
+    db.session.commit()
 
 def create_plot(converted_data):
     channelList = [0, 1, 2]
@@ -230,12 +218,10 @@ def create_plot(converted_data):
 
 @app.route('/tables.html')
 def adc_data():
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM adc_data ORDER BY timestamp DESC")
-    data = cur.fetchall()
-    conn.close()
-    return render_template('tables.html', data=data)
+    data = AdcData.query.with_entities(AdcData.id, AdcData.timestamp, AdcData.num_channels, AdcData.duration, AdcData.radius, AdcData.latitude, AdcData.longitude, AdcData.location).all()
+    data_dicts = [row._asdict() for row in data]
+    return render_template('tables.html', data=data_dicts)
+
 
 @app.route('/get_waveform_data', methods=['GET'])
 def get_waveform_data():
@@ -244,35 +230,30 @@ def get_waveform_data():
     if not event_id:
         return jsonify({'error': 'Event ID is required'}), 400
 
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-
-    cur.execute("SELECT channel, component, value FROM adc_values WHERE event_id = ? ORDER BY channel, id", (event_id,))
-    rows = cur.fetchall()
+    rows = AdcValues.query.filter_by(event_id=event_id).order_by(AdcValues.channel, AdcValues.component, AdcValues.id).all()
 
     waveform_data = defaultdict(lambda: defaultdict(list))
     for row in rows:
-        channel, component, value = row
+        channel, component, value = row.channel, row.component, row.value
         waveform_data[channel][component].append(value)
-
-    conn.close()
+    
 
     return jsonify(waveform_data)
-
 
 @app.route('/delete_event', methods=['POST'])
 def delete_event():
     event_id = request.form['id']
     
     try:
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
+        adc_values = AdcValues.query.filter_by(event_id=event_id).all()
+        for value in adc_values:
+            db.session.delete(value)
 
-        cur.execute("DELETE FROM adc_values WHERE event_id=?", (event_id,))
-        cur.execute("DELETE FROM adc_data WHERE id=?", (event_id,))
+        adc_data = adc_data = db.session.get(AdcData, event_id)
+        if adc_data:
+            db.session.delete(adc_data)
 
-        conn.commit()
-        conn.close()
+        db.session.commit()
         
         return jsonify({'status': 'success'})
     except Exception as e:
@@ -427,8 +408,6 @@ def dashboard3D():
     
 # Add a new global variable to store the received data
 received_data = []
-
-
 connected_devices = {}
 command_processed_dict = {}
 received_data_dict = {}
@@ -485,8 +464,6 @@ def get_data():
 
         return jsonify(plot_data)
 
-
-
 def handle_client_connection(conn, addr):
     global command_processed_dict, received_data_dict, connected_devices
     
@@ -534,9 +511,6 @@ def handle_client_connection(conn, addr):
         del connected_devices[device_id]
 
     conn.close()
-
-
-
 
 def start_server(port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

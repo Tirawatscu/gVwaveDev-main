@@ -33,28 +33,28 @@
                                             </div>
                                         </td>
                                         <td>
-                                            <p class="title">ID: {{ row[0] }}  {{ row[7] }}</p>
-                                            <p class="text-muted">Date: {{ row[1] }}</p>
+                                            <p class="title">ID: {{ row.id }}  {{ row.location }}</p>
+                                            <p class="text-muted">Date: {{ row.timestamp }}</p>
                                         </td>
                                         <td>
-                                            <p class="title">Number of Channels: {{ row[2] }}</p>
-                                            <p class="text-muted">Duration: {{ row[3] }} seconds</p>
+                                            <p class="title">Number of Channels: {{ row.num_channels }}</p>
+                                            <p class="text-muted">Duration: {{ row.duration }} seconds</p>
                                         </td>
                                         <td>
-                                            <p class="title">Radius: {{ row[4] }} m</p>
-                                            <p class="text-muted">Latidute: {{ row[5] }} Longitude: {{ row[6] }}</p>
+                                            <p class="title">Radius: {{ row.radius }} m</p>
+                                            <p class="text-muted">Latidute: {{ row.latitude }} Longitude: {{ row.longitude }}</p>
                                         </td>
                                         <td class="td-actions text-right">
-                                            <button type="button" rel="tooltip" title="" class="btn btn-link edit-icon" data-id="{{ row[0] }}" data-original-title="Edit Task">
+                                            <button type="button" rel="tooltip" title="" class="btn btn-link edit-icon" data-id="{{ row.id }}" data-original-title="Edit Task">
                                               <i class="tim-icons icon-pencil"></i>
                                           </button>
-                                          <button type="button" rel="tooltip" title="" class="btn btn-link zoom-split" data-id="{{ row[0] }}" data-original-title="View Details">
+                                          <button type="button" rel="tooltip" title="" class="btn btn-link zoom-split" data-id="{{ row.id }}" data-original-title="View Details">
                                               <i class="tim-icons icon-zoom-split"></i>
                                           </button>
-                                          <button type="button" rel="tooltip" title="" class="btn btn-link delete-event" data-original-title="Delete" data-id="{{ row[0] }}">
+                                          <button type="button" rel="tooltip" title="" class="btn btn-link delete-event" data-original-title="Delete" data-id="{{ row.id }}">
                                             <i class="tim-icons icon-trash-simple"></i>
                                         </button>
-                                        <button type="button" rel="tooltip" title="" class="btn btn-link download-event" data-original-title="Download" data-id="{{ row[0] }}" onclick="downloadWaveformData({{ row[0] }});">
+                                        <button type="button" rel="tooltip" title="" class="btn btn-link download-event" data-original-title="Download" data-id="{{ row.id }}" onclick="downloadWaveformData({{ row[0] }});">
                                             <i class="tim-icons icon-cloud-download-93"></i>
                                         </button>                                                                      
                                       </td>

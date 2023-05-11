@@ -1,55 +1,30 @@
-import sqlite3
-from db import DATABASE
+#models.py
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 
-class User:
-    def __init__(self, id, username, email, password, role='user'):
-        self.id = id
-        self.username = username
-        self.email = email
-        self.password = password
-        self.role = role
+db = SQLAlchemy()
 
+# Define your models using Flask-SQLAlchemy
+class AdcData(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    timestamp = db.Column(db.String)
+    num_channels = db.Column(db.Integer)
+    duration = db.Column(db.Float)
+    radius = db.Column(db.Float)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    location = db.Column(db.String)
 
-    @classmethod
-    def get(cls, user_id):
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id=?", (user_id,))
-        user = cur.fetchone()
-        conn.close()
-        if user:
-            return cls(*user)
-        return None
+class AdcValues(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('adc_data.id'))
+    channel = db.Column(db.Integer)
+    component = db.Column(db.String)
+    value = db.Column(db.Float)
 
-    @classmethod
-    def find_by_username(cls, username):
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE username=?", (username,))
-        user = cur.fetchone()
-        conn.close()
-        if user:
-            return cls(*user)
-        return None
-    
-    @staticmethod
-    def find_by_email(email):
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE email=?", (email,))
-        row = cur.fetchone()
-        conn.close()
-
-        if row:
-            return User(row[0], row[1], row[2], row[3], row[4])
-        else:
-            return None
-    
-    @classmethod
-    def add_user(cls, user):
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)", (user.username, user.password, user.email))
-        conn.commit()
-        conn.close()
-
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String, unique=True)
+    email = db.Column(db.String, unique=True)
+    password = db.Column(db.String)
+    role = db.Column(db.String)
