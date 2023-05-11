@@ -293,39 +293,33 @@ def update_event():
         return jsonify(status="error")
     
 def fetch_waveform_data_by_id(event_id):
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-
     # Fetch waveform data
-    cur.execute("SELECT channel, value FROM adc_values WHERE event_id = ? ORDER BY channel, id", (event_id,))
-    rows = cur.fetchall()
+    rows = AdcValues.query.filter_by(event_id=event_id).order_by(AdcValues.channel, AdcValues.id).all()
 
     waveform_data = defaultdict(list)
     for row in rows:
-        channel, value = row
+        channel, value = row.channel, row.value
         waveform_data[str(channel)].append(value)  # Convert channel to string to avoid key duplication
 
     # Fetch metadata
-    cur.execute("SELECT * FROM adc_data WHERE id = ?", (event_id,))
-    metadata_row = cur.fetchone()
+    metadata_row = AdcData.query.get(event_id)
 
     if metadata_row:
         metadata = {
-            'id': metadata_row[0],
-            'timestamp': metadata_row[1],
-            'num_channels': metadata_row[2],
-            'duration': metadata_row[3],
-            'radius': metadata_row[4],
-            'latitude': metadata_row[5],
-            'longitude': metadata_row[6],
-            'location': metadata_row[7]
+            'id': metadata_row.id,
+            'timestamp': metadata_row.timestamp,
+            'num_channels': metadata_row.num_channels,
+            'duration': metadata_row.duration,
+            'radius': metadata_row.radius,
+            'latitude': metadata_row.latitude,
+            'longitude': metadata_row.longitude,
+            'location': metadata_row.location
         }
     else:
         metadata = None
 
-    conn.close()
-
     return waveform_data, metadata
+
 
 
 
