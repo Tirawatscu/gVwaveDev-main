@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>IoT Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+  <div class="content">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>GIS Map</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div id="gauge" style="height: 30vh;"></div>
+        </div>
+    </div>
+</div>
+
+    <script>
+        function updateGauge(value) {
+            var data = [
+                {
+                    domain: { x: [0, 1], y: [0, 1] },
+                    value: value,
+                    title: { text: "Temperature" },
+                    type: "indicator",
+                    mode: "gauge+number",
+                    gauge: { axis: { range: [20, 30] } }
+                }
+            ];
+
+            var layout = { width: 600, height: 500, margin: { t: 0, b: 0 } };
+            Plotly.newPlot('gauge', data, layout);
+        }
+
+        function fetchData() {
+            $.getJSON('/data', function(data) {
+                updateGauge(data.temperature);
+            });
+        }
+
+        setInterval(fetchData, 5000);  // fetch new data every 5 seconds
+    </script>
+</body>
+</html>
+
+
+{% endblock %}

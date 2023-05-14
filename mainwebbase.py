@@ -24,6 +24,7 @@ from models import db, AdcData, AdcValues
 from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
 from flask_login import LoginManager, current_user, login_required
+from flask_mqtt import Mqtt
 
 
 
@@ -43,7 +44,18 @@ except:
 def create_app():
     app = Flask(__name__, static_folder="static", template_folder="templates")
     app.config['SECRET_KEY'] = 'gvWave01'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gVdb2023.db'
+    #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gVdb2023.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:Geoverse5@161.200.87.11:80/gvdb'
+
+    
+    app.config['MQTT_BROKER_URL'] = '1b31e8cbcd6d4d46aa695d71251f143c.s2.eu.hivemq.cloud'
+    app.config['MQTT_BROKER_PORT'] = 8883
+    app.config['MQTT_REFRESH_TIME'] = 1.0
+    app.config['MQTT_USERNAME'] = 'gvdevmqtt'
+    app.config['MQTT_PASSWORD'] = 'Geoverse@5'
+    app.config['MQTT_TLS_ENABLED'] = True
+    app.config['MQTT_TLS_VERSION'] = 2
+    
     app.register_blueprint(auth_bp)
     db.init_app(app)
     login_manager = LoginManager()
@@ -320,9 +332,6 @@ def fetch_waveform_data_by_id(event_id):
 
     return waveform_data, metadata
 
-
-
-
 @app.route('/download_waveform_data', methods=['GET'])
 def download_waveform_data():
     event_id = request.args.get('id', type=int)
@@ -364,23 +373,31 @@ def store_uploaded_data():
     metadata = data['metadata']
     waveform_data = data['waveform_data']
 
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-
-    cur.execute('''INSERT INTO adc_data (timestamp, num_channels, duration, radius, latitude, longitude, location)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), len(waveform_data), metadata['duration'], metadata['radius'],
-                 metadata['latitude'], metadata['longitude'], metadata['location']))
-    event_id = cur.lastrowid
+    adc_data = AdcData(
+        timestamp=datetime.now(),
+        num_channels=len(waveform_data),
+        duration=metadata['duration'],
+        radius=metadata['radius'],
+        latitude=metadata['latitude'],
+        longitude=metadata['longitude'],
+        location=metadata['location']
+    )
+    db.session.add(adc_data)
+    db.session.commit()
 
     for channel, values in waveform_data.items():
         for value in values:
-            cur.execute('''INSERT INTO adc_values (event_id, channel, value) VALUES (?, ?, ?)''', (event_id, channel, value))
+            adc_value = AdcValues(
+                event_id=adc_data.id,
+                channel=channel,
+                value=value
+            )
+            db.session.add(adc_value)
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return jsonify({'success': True, 'message': 'Data stored successfully'})
+
 
 
 current_command = 0
@@ -529,6 +546,32 @@ def connected_devices_count():
     with connections_lock:
         count = len(connected_devices)
     return jsonify({"count": count})
+
+@app.route('/iot.html')
+def iot():
+    return render_template('iot.html')
+
+mqtt = Mqtt(app)
+
+temperature = 0.0
+
+@mqtt.on_connect()
+def handle_connect(client, userdata, flags, rc):
+    mqtt.subscribe('Temperature/gv01')
+
+@mqtt.on_message()
+def handle_mqtt_message(client, userdata, message):
+    global temperature
+    data = dict(
+        topic=message.topic,
+        payload=message.payload.decode()
+    )
+    temperature = float(data['payload'])
+
+@app.route('/data', methods=['GET'])
+def data():
+    global temperature
+    return json.dumps({"temperature": temperature})
 
 if __name__ == '__main__':
     try:
