@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% block content %}
-<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -8,48 +7,126 @@
     <title>IoT Dashboard</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+
 </head>
-<body>
-  <div class="content">
-    <div class="row">
+<div class="content container-fluid">
+    <div class="row d-flex justify-content-center">
         <div class="col-md-12">
-            <h1>GIS Map</h1>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-12">
-            <div id="gauge" style="height: 30vh;"></div>
+            <div class="card" style="background: #212529";>
+                <div class="row">
+                    <div class="col-md-12">
+                        <h1>GVIOT</h1>
+                    </div>
+                </div>
+                <div class="row d-flex justify-content-center">
+                    <div class="col-md-6">
+                        <div id="gaugeTemp" class="graph"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="gaugeHum" class="graph"></div>
+                    </div>
+                </div>
+                <br>
+                <br>
+                <br>
+                        <div id="graphAccl" class="graph mb-2"></div>
+            </div>
         </div>
     </div>
 </div>
 
-    <script>
-        function updateGauge(value) {
-            var data = [
-                {
-                    domain: { x: [0, 1], y: [0, 1] },
-                    value: value,
-                    title: { text: "Temperature" },
-                    type: "indicator",
-                    mode: "gauge+number",
-                    gauge: { axis: { range: [20, 30] } }
-                }
-            ];
+{% endblock %}
 
-            var layout = { width: 600, height: 500, margin: { t: 0, b: 0 } };
-            Plotly.newPlot('gauge', data, layout);
+{% block extra_js %}
+<script>
+    var acclData = [
+    {
+        x: [],
+        y: [],
+        name: 'X',
+        mode: 'lines+markers'
+    },
+    {
+        x: [],
+        y: [],
+        name: 'Y',
+        mode: 'lines+markers'
+    },
+    {
+        x: [],
+        y: [],
+        name: 'Z',
+        mode: 'lines+markers'
+    }
+];
+
+function updateGauges(temp, hum, accl, timestamp) {
+    var tempData = [
+        {
+            domain: { x: [0, 1], y: [0, 1] },
+            value: temp,
+            title: { text: "Temperature" },
+            type: "indicator",
+            mode: "gauge+number",
+            gauge: { axis: { range: [0, 50] } }
         }
+    ];
 
-        function fetchData() {
-            $.getJSON('/data', function(data) {
-                updateGauge(data.temperature);
-            });
+    var humData = [
+        {
+            domain: { x: [0, 1], y: [0, 1] },
+            value: hum,
+            title: { text: "Humidity" },
+            type: "indicator",
+            mode: "gauge+number",
+            gauge: { axis: { range: [0, 100] } }
         }
+    ];
 
-        setInterval(fetchData, 5000);  // fetch new data every 5 seconds
-    </script>
-</body>
-</html>
+    if (acclData[0].x.length > 10) {
+        // Remove the oldest entry from each array
+        acclData[0].x.shift();
+        acclData[0].y.shift();
+        acclData[1].x.shift();
+        acclData[1].y.shift();
+        acclData[2].x.shift();
+        acclData[2].y.shift();
+    }
+    acclData[0].x.push(timestamp);
+    acclData[0].y.push(accl.x);
+    acclData[1].x.push(timestamp);
+    acclData[1].y.push(accl.y);
+    acclData[2].x.push(timestamp);
+    acclData[2].y.push(accl.z);
 
+    var layout1 = { width: 500, height: 300, margin: { t: 0, b: 0 } };
+    var layout2 = {
+        title: 'Tilt Meter',
+        xaxis: { title: 'Time (s)' },
+        yaxis: { title: 'Index' },
+        autosize: true,
+        width: null,
+        height: 500,
+    };
+    Plotly.newPlot('gaugeTemp', tempData, layout1);
+    Plotly.newPlot('gaugeHum', humData, layout1);
+    Plotly.newPlot('graphAccl', acclData, layout2);
+}
 
+function fetchData() {
+    $.getJSON('/data', function(data) {
+        var timestamp = new Date();
+        if (data.temperature === null && data.humidity === null && data.accl.x === null) {
+            // Special value received, indicating a disconnection
+            updateGauges(0, 0, {x: 0, y: 0, z: 0}, timestamp);
+        } else {
+            updateGauges(data.temperature, data.humidity, data.accl, timestamp);
+        }
+    });
+}
+
+setInterval(fetchData, 5000);  // fetch new data every 5 seconds
+
+</script>
 {% endblock %}

@@ -13,7 +13,7 @@ import plotly
 import json
 import sqlite3
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
 from flask import copy_current_request_context
 from flask_socketio import Namespace, emit
@@ -25,7 +25,6 @@ from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
 from flask_login import LoginManager, current_user, login_required
 from flask_mqtt import Mqtt
-
 
 
 REF = 5.08          # Modify according to actual voltage
@@ -285,24 +284,25 @@ def update_event():
 
     try:
         # Update the data in the SQLite database
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute('''UPDATE adc_data SET
-                       num_channels = ?,
-                       duration = ?,
-                       radius = ?,
-                       latitude = ?,
-                       longitude = ?,
-                       location = ?
-                       WHERE id = ?''', (num_channels, duration, radius, latitude, longitude, location, event_id))
-        conn.commit()
-        conn.close()
+        event = AdcData.query.get(event_id)
+        if event is None:
+            return jsonify(status="error", message="No such event")
+
+        event.num_channels = num_channels
+        event.duration = duration
+        event.radius = radius
+        event.latitude = latitude
+        event.longitude = longitude
+        event.location = location
+
+        db.session.commit()
 
         return jsonify(status="success")
 
     except Exception as e:
         print(e)
         return jsonify(status="error")
+
     
 def fetch_waveform_data_by_id(event_id):
     # Fetch waveform data
@@ -554,29 +554,52 @@ def iot():
 mqtt = Mqtt(app)
 
 temperature = 0.0
+humidity = 0.0
+accl = {"x": 0.0, "y": 0.0, "z": 0.0}
+last_update = datetime.now()
 
 @mqtt.on_connect()
 def handle_connect(client, userdata, flags, rc):
     mqtt.subscribe('Temperature/gv01')
+    mqtt.subscribe('Humidity/gv01')
+    mqtt.subscribe('Accl/gv01')
 
 @mqtt.on_message()
 def handle_mqtt_message(client, userdata, message):
     global temperature
+    global humidity
+    global accl
+    global last_update
     data = dict(
         topic=message.topic,
         payload=message.payload.decode()
     )
-    temperature = float(data['payload'])
+    if data['topic'] == 'Temperature/gv01':
+        temperature = float(data['payload'])
+    elif data['topic'] == 'Humidity/gv01':
+        humidity = float(data['payload'])
+    elif data['topic'] == 'Accl/gv01':
+    # Assuming accl data is a comma-separated string "x,y,z"
+        accl_vals = data['payload'].split(",")
+        accl = {"x": float(accl_vals[0]), "y": float(accl_vals[1]), "z": float(accl_vals[2])}
+    last_update = datetime.now()
 
 @app.route('/data', methods=['GET'])
 def data():
     global temperature
-    return json.dumps({"temperature": temperature})
+    global humidity
+    global accl
+    global last_update
+    if datetime.now() - last_update > timedelta(seconds=6):
+        # If more than 5 seconds have passed since the last update, return a special value
+        return json.dumps({"temperature": None, "humidity": None, "accl": {"x": None, "y": None, "z": None}})
+    else:
+        return json.dumps({"temperature": temperature, "humidity": humidity, "accl": accl})
 
 if __name__ == '__main__':
     try:
         Thread(target=start_server, args=(8081,)).start()
-        socketio.run(app, host='0.0.0.0', port=8080)
+        socketio.run(app, host='0.0.0.0', port=8080, allow_unsafe_werkzeug= True)
     finally:
         try:
             ADC.ADS1263_Exit()

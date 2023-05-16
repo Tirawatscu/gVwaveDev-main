@@ -31,8 +31,7 @@
   <link href="../static/css/nucleo-icons.css" rel="stylesheet" />
   <!-- CSS Files -->
   <link href="../static/css/black-dashboard.css?v=1.0.0" rel="stylesheet" />
-  <!-- CSS Just for demo purpose, don't include it in your project -->
-  <link href="../static/demo/demo.css" rel="stylesheet" />
+
 </head>
 
 <body class="">
@@ -41,7 +40,7 @@
       <!--
         Tip 1: You can change the color of the sidebar using: data-color="blue | green | orange | red"
     -->
-      <div class="sidebar-wrapper">
+      <div class="sidebar-wrapper"  data-color="blue | green | orange | red">
         <div class="logo">
           <a href="javascript:void(0)" class="simple-text logo-mini">
             CT
@@ -89,8 +88,8 @@
           </li>
           <li>
             <a href="./user.html">
-              <i class="tim-icons icon-single-02"></i>
-              <p>User Profile</p>
+              <i class="tim-icons icon-components"></i>
+              <p>gV IOT MAP</p>
             </a>
           </li>
           <li>
@@ -110,7 +109,7 @@
     </div>
     <div class="main-panel">
       <!-- Navbar -->
-      <!--nav class="navbar navbar-expand-lg navbar-absolute navbar-transparent">
+      <nav class="navbar navbar-expand-lg navbar-absolute navbar-transparent">
         <div class="container-fluid">
           <div class="navbar-wrapper">
             <div class="navbar-toggle d-inline">
@@ -143,11 +142,7 @@
                   </p>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-right dropdown-navbar">
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Mike John responded to your email</a></li>
-                  <li class="nav-link"><a href="javascript:void(0)" class="nav-item dropdown-item">You have 5 more tasks</a></li>
-                  <li class="nav-link"><a href="javascript:void(0)" class="nav-item dropdown-item">Your friend Michael is in town</a></li>
-                  <li class="nav-link"><a href="javascript:void(0)" class="nav-item dropdown-item">Another notification</a></li>
-                  <li class="nav-link"><a href="javascript:void(0)" class="nav-item dropdown-item">Another one</a></li>
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Geoverse 101</a></li>
                 </ul>
               </li>
               <li class="dropdown nav-item">
@@ -171,7 +166,7 @@
             </ul>
           </div>
         </div>
-      </nav-->
+      </nav>
       <div class="modal modal-search fade" id="searchModal" tabindex="-1" role="dialog" aria-labelledby="searchModal" aria-hidden="true">
         <div class="modal-dialog" role="document">
           <div class="modal-content">
@@ -186,6 +181,8 @@
       </div>
       <!-- End Navbar -->
 {% block content %}{% endblock %}
+{% block extra_js %}
+{% endblock %}
 <footer class="footer">
     <div class="container-fluid">
       <ul class="nav">

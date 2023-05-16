@@ -5,6 +5,8 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
 </head>
+
+
       <div class="content">
           <div class="col-12">
             <div class="card card-chart"  style="background: #212529;">
@@ -88,7 +90,6 @@
         
       <script>
         let uploadedWaveformData = null;
-
         $(document).ready(function () {
             $("#collect-button").click(function () {
                 $("#collect-button").prop("disabled", true);
@@ -246,8 +247,6 @@
             console.error("Error reading or parsing the JSON file:", error);
           }
         });
-        
-        
           $("#confirm_data").click(function () {
             console.log("confirm_data clicked");
             const duration = parseFloat($("#duration").val());
@@ -288,10 +287,8 @@
               document.getElementById('connected-devices').textContent = `Connected Devices: ${data.count}`;
             });
         }
-        
         // Update the connected devices count every 5 seconds
         setInterval(updateConnectedDevices, 5000);
-
     </script>
     
     
