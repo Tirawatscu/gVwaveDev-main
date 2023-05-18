@@ -11,12 +11,11 @@ if systemOS == "Linux":
 import plotly.graph_objs as go
 import plotly
 import json
-import sqlite3
 from contextlib import closing
 from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
 from flask import copy_current_request_context
-from flask_socketio import Namespace, emit
+from flask_socketio import Namespace
 from collections import defaultdict
 import socket
 from threading import Thread, Lock
@@ -25,9 +24,6 @@ from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
 from flask_login import LoginManager, current_user, login_required
 from flask_mqtt import Mqtt
-'''from gevent import monkey
-monkey.patch_all()'''
-
 
 
 REF = 5.08          # Modify according to actual voltage
@@ -72,7 +68,7 @@ def create_app():
 app = create_app()
 
 
-socketio = SocketIO(app)
+socketio = SocketIO(app, ping_timeout=1000)
 sampling_rate = 128  # Hz
 sleep_duration = 1 / sampling_rate
 
@@ -153,6 +149,11 @@ def collect_adc_data(duration, radius, lat, lon, location):
     # Store the event information in the database
     timestamp = int(time.time())
     num_channels = len(channelList)
+    
+    store_event_in_database(timestamp, num_channels, duration, radius, lat, lon, converted_data, location)
+        
+    
+    return converted_data, actual_sampling_rate
 
 def store_event_in_database(timestamp, num_channels, duration, radius, lat, lon, converted_data, location, components=None):
     datetime_string = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
@@ -169,7 +170,6 @@ def store_event_in_database(timestamp, num_channels, duration, radius, lat, lon,
         # Default components for vertical only
         components = ['z']
 
-    print("Storing data into database")
     for channel, values in converted_data.items():
         component = components[int(channel) % len(components)]
         for value in values:
@@ -177,7 +177,6 @@ def store_event_in_database(timestamp, num_channels, duration, radius, lat, lon,
             db.session.add(new_adc_value)
 
     db.session.commit()
-    print("Finish")
 
 def create_plot(converted_data):
     channelList = [0, 1, 2]
@@ -377,7 +376,10 @@ def store_uploaded_data():
 
 
 current_command = 0
-command_processed = True
+command_processed_dict = {}
+received_data_dict = {}
+connected_devices = {}
+connections_lock = Lock()
 
 @app.route('/dashboard3D.html', methods=['GET', 'POST'])
 @login_required
@@ -389,16 +391,10 @@ def dashboard3D():
         with connections_lock:
             for device_id in connected_devices:
                 command_processed_dict[device_id] = False
+        socketio.emit('command', current_command)
         return redirect('/dashborad3D')
     else:
         return render_template('/dashboard3D.html')
-    
-# Add a new global variable to store the received data
-received_data = []
-connected_devices = {}
-command_processed_dict = {}
-received_data_dict = {}
-connections_lock = Lock()
 
 @app.route('/get_data', methods=['POST'])
 def get_data():
@@ -415,6 +411,9 @@ def get_data():
         with connections_lock:
             for device_id in connected_devices:
                 command_processed_dict[device_id] = False
+        print(command_processed_dict, current_command)
+        socketio.emit('sample_count', current_command)
+        
 
         # Wait until the command is processed for all devices
         while not all(command_processed_dict.values()):
@@ -433,7 +432,6 @@ def get_data():
 
         timestamp = int(time.time())
         num_channels = len(merged_data)
-        
         store_event_in_database(timestamp, num_channels, duration, radius, latitude, longitude, merged_data, location, components=['z', 'x', 'y'])
         
         # Convert the merged data to a format suitable for plotting
@@ -444,12 +442,13 @@ def get_data():
 
         return jsonify(plot_data)
 
-def handle_client_connection(conn, addr):
+@socketio.on('connect')
+def handle_client_connection():
     global command_processed_dict, received_data_dict, connected_devices
-    
+
     # Receive the device identifier (assuming it's sent by the client as the first message)
-    device_id = conn.recv(1024).decode()
-    
+    device_id = request.sid
+
     with connections_lock:
         if device_id in connected_devices:
             print(f"Device {device_id} reconnected")
@@ -458,58 +457,39 @@ def handle_client_connection(conn, addr):
             connected_devices[device_id] = None
             command_processed_dict[device_id] = True
 
-    while True:
-        if not command_processed_dict[device_id]:
-            try:
-                command_to_send = current_command
-                conn.sendall(str(command_to_send).encode())
+@socketio.on('mac_address')
+def handle_mac_address(mac_address):
+    print(f"Received mac_address: {mac_address}")
 
-                # Receive the length of the data
-                data_length = int(conn.recv(8).decode())
+@socketio.on('data')
+def handle_data(data):
+    global command_processed_dict, received_data_dict, connected_devices
 
-                # Receive data in chunks
-                data = b""
-                remaining_data = data_length
-                while remaining_data > 0:
-                    chunk = conn.recv(min(remaining_data, 4096))
-                    if not chunk:
-                        break
-                    data += chunk
-                    remaining_data -= len(chunk)
+    device_id = request.sid
 
-                received_data = json.loads(data.decode())  # Deserialize JSON data
+    if not command_processed_dict[device_id]:
+        try:
+            command_to_send = current_command
+            #emit('command', str(command_to_send))
 
-                with connections_lock:
-                    received_data_dict[device_id] = received_data
+            received_data = json.loads(data)  # Deserialize JSON data
 
-                command_processed_dict[device_id] = True
-            except Exception as e:
-                print(f"Error in handle_client_connection: {e}")
-                break
+            with connections_lock:
+                received_data_dict[device_id] = received_data
+
+            command_processed_dict[device_id] = True
+        except Exception as e:
+            print(f"Error in handle_data: {e}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    device_id = request.sid
 
     with connections_lock:
         del connected_devices[device_id]
 
-    conn.close()
+    print(f"Device {device_id} disconnected")
 
-def start_server(port):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(('0.0.0.0', port))
-    server.listen(5)
-
-    print(f"Listening on port {port}")
-
-    while True:
-        conn, addr = server.accept()
-        print(f"Connected on port {port} by {addr}")
-        
-        t = Thread(target=handle_client_connection, args=(conn, addr))
-        t.start()
-
-        # Print the number of connected devices
-        with connections_lock:
-            print(f"Connected Devices: {len(connected_devices)}")
-            
 @app.route('/connected_devices', methods=['GET'])
 def connected_devices_count():
     with connections_lock:
@@ -567,9 +547,7 @@ def data():
 
 if __name__ == '__main__':
     try:
-        Thread(target=start_server, args=(8081,)).start()
         socketio.run(app, host='0.0.0.0', port=8080)
-        #app.run(host='0.0.0.0', port=8080)
     finally:
         try:
             ADC.ADS1263_Exit()
