@@ -2,11 +2,8 @@ from flask import Flask, render_template, request, jsonify, redirect
 import time
 import platform
 systemOS = platform.system()
-try:
-    import ADS1263
-    import RPi.GPIO as GPIO
-except:
-    pass
+import ADS1263
+import RPi.GPIO as GPIO
 import plotly.graph_objs as go
 import plotly
 import json
@@ -27,15 +24,14 @@ from flask_mqtt import Mqtt
 
 REF = 5.08          # Modify according to actual voltage
                     # external AVDD and AVSS(Default), or internal 2.5V
-try:
-    ADC = ADS1263.ADS1263()
-    if (ADC.ADS1263_init_ADC1('ADS1263_7200SPS') == -1):
-        ADC.ADS1263_Exit()
-        print("Failed to initialize ADC1")
-        exit()
-    ADC.ADS1263_SetMode(1)
-except:
-    pass
+
+ADC = ADS1263.ADS1263()
+if (ADC.ADS1263_init_ADC1('ADS1263_7200SPS') == -1):
+    ADC.ADS1263_Exit()
+    print("Failed to initialize ADC1")
+    exit()
+ADC.ADS1263_SetMode(1)
+
 # Initialization
 
 def create_app():
