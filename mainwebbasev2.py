@@ -42,8 +42,8 @@ except:
 def create_app():
     app = Flask(__name__, static_folder="static", template_folder="templates")
     app.config['SECRET_KEY'] = 'gvWave01'
-    #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gVdb2023.db'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:Geoverse5@161.200.87.11:80/gvdb'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gVdb2023.db'
+    #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:Geoverse5@161.200.87.11:80/gvdb'
 
     
     app.config['MQTT_BROKER_URL'] = '1b31e8cbcd6d4d46aa695d71251f143c.s2.eu.hivemq.cloud'
