@@ -2,12 +2,11 @@ from flask import Flask, render_template, request, jsonify, redirect
 import time
 import platform
 systemOS = platform.system()
-if systemOS == "Linux":
-    try:
-        import ADS1263
-        import RPi.GPIO as GPIO
-    except:
-        pass
+try:
+    import ADS1263
+    import RPi.GPIO as GPIO
+except:
+    pass
 import plotly.graph_objs as go
 import plotly
 import json
