@@ -19,7 +19,7 @@ from models import db, AdcData, AdcValues
 from flask_sqlalchemy import SQLAlchemy
 from auth import auth_bp
 from flask_login import LoginManager, current_user, login_required
-from flask_mqtt import Mqtt
+#from flask_mqtt import Mqtt
 
 
 REF = 5.08          # Modify according to actual voltage
@@ -41,13 +41,13 @@ def create_app():
     #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:Geoverse5@161.200.87.11:80/gvdb'
 
     
-    app.config['MQTT_BROKER_URL'] = '1b31e8cbcd6d4d46aa695d71251f143c.s2.eu.hivemq.cloud'
+    '''app.config['MQTT_BROKER_URL'] = '1b31e8cbcd6d4d46aa695d71251f143c.s2.eu.hivemq.cloud'
     app.config['MQTT_BROKER_PORT'] = 8883
     app.config['MQTT_REFRESH_TIME'] = 1.0
     app.config['MQTT_USERNAME'] = 'gvdevmqtt'
     app.config['MQTT_PASSWORD'] = 'Geoverse@5'
     app.config['MQTT_TLS_ENABLED'] = True
-    app.config['MQTT_TLS_VERSION'] = 2
+    app.config['MQTT_TLS_VERSION'] = 2'''
     
     app.register_blueprint(auth_bp)
     db.init_app(app)
@@ -495,7 +495,7 @@ def connected_devices_count():
 def iot():
     return render_template('iot.html')
 
-mqtt = Mqtt(app)
+'''mqtt = Mqtt(app)
 
 temperature = 0.0
 humidity = 0.0
@@ -538,7 +538,7 @@ def data():
         # If more than 5 seconds have passed since the last update, return a special value
         return json.dumps({"temperature": None, "humidity": None, "accl": {"x": None, "y": None, "z": None}})
     else:
-        return json.dumps({"temperature": temperature, "humidity": humidity, "accl": accl})
+        return json.dumps({"temperature": temperature, "humidity": humidity, "accl": accl})'''
 
 if __name__ == '__main__':
     try:
