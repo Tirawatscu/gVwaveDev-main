@@ -542,7 +542,7 @@ def data():
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, host='0.0.0.0', port=8080)
+        socketio.run(app, host='0.0.0.0', port=8080, allow_unsafe_werkzeug=True)
     finally:
         try:
             ADC.ADS1263_Exit()
