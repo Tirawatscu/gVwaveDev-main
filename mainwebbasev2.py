@@ -1,3 +1,5 @@
+# This python file is for running on the local raspberrypi for wave acquisition
+
 from flask import Flask, render_template, request, jsonify, redirect
 import time
 import platform

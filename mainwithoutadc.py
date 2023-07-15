@@ -13,7 +13,6 @@ from flask_socketio import SocketIO, emit
 from flask import copy_current_request_context
 from flask_socketio import Namespace
 from collections import defaultdict
-import socket
 from threading import Thread, Lock
 from models import db, AdcData, AdcValues
 from flask_sqlalchemy import SQLAlchemy
@@ -542,7 +541,8 @@ def data():
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, host='0.0.0.0', port=8080, allow_unsafe_werkzeug=True)
+        #socketio.run(app, host='0.0.0.0', port=8080, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=8080)
     finally:
         try:
             ADC.ADS1263_Exit()
